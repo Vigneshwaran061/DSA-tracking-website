@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSA Tracker</title>
+<style>
+:root{--bg:#eef2f1;--card:#fff;--ink:#16302b;--mute:#5d7570;--line:#d3dedb;--accent:#0f766e;--easy:#2f9e44;--med:#e08a00;--hard:#c92a2a;--code:#0f1c1a;--codeink:#d6f0ea}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1c1a;--card:#162826;--ink:#e3efec;--mute:#8fa8a3;--line:#27413d;--accent:#2dd4bf}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",Verdana,sans-serif;line-height:1.5}
+main{max-width:900px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:2rem;margin:0}h2{font-size:1.15rem;margin:0 0 6px}
+.sub{color:var(--mute);margin:4px 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat b{display:block;font-size:1.8rem}
+.stat span{color:var(--mute);font-size:.9rem}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+input,select,button,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+input[type=text],input:not([type]){flex:1 1 160px}
+button{cursor:pointer;background:var(--accent);color:#fff;border-color:var(--accent)}
+button.ghost{background:transparent;color:var(--mute);border-color:var(--line)}
+button.sm{padding:4px 10px;font-size:.9rem}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border:0}
+.item.done .t{text-decoration:line-through;color:var(--mute)}
+.item .t{flex:1;min-width:0}
+a{color:var(--accent)}
+.meta{font-size:.85rem;color:var(--mute)}
+.tag{font-weight:bold}
+.Easy{color:var(--easy)}.Medium{color:var(--med)}.Hard{color:var(--hard)}
+.empty{color:var(--mute);text-align:center;padding:24px 0}
+input[type=checkbox]{flex:none;width:20px;height:20px;accent-color:var(--accent)}
+#editor{display:none;border-color:var(--accent)}
+#code{width:100%;height:230px;background:var(--code);color:var(--codeink);font-family:Consolas,"Courier New",monospace;font-size:.9rem;tab-size:2;resize:vertical;white-space:pre}
+pre{background:var(--code);color:var(--codeink);padding:12px;border-radius:6px;overflow-x:auto;margin:8px 0 0;font-size:.85rem;white-space:pre-wrap}
+.pass{color:var(--easy)}.fail{color:var(--hard)}
+</style>
+</head>
+<body>
+<main>
+<h1>DSA Tracker</h1>
+<p class="sub">Practice common interview problems, run your code, and track your progress.</p>
+
+<section class="card stats" aria-label="Progress">
+  <div class="stat"><b id="sSolved">0</b><span>Solved of <span id="sTotal">0</span></span><div class="bar"><i id="bAll"></i></div></div>
+  <div class="stat"><b id="sStreak">0</b><span>Day streak</span></div>
+  <div class="stat"><b class="Easy" id="sEasy">0</b><span>Easy solved</span></div>
+  <div class="stat"><b class="Medium" id="sMed">0</b><span>Medium solved</span></div>
+  <div class="stat"><b class="Hard" id="sHard">0</b><span>Hard solved</span></div>
+</section>
+
+<section class="card" id="editor" aria-label="Code editor">
+  <h2 id="eTitle"></h2>
+  <p class="meta" id="eDesc"></p>
+  <textarea id="code" spellcheck="false" aria-label="Code editor"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="run">Run code</button>
+    <button class="ghost" id="reset">Reset code</button>
+    <button class="ghost" id="close">Close</button>
+    <a id="eLink" target="_blank" rel="noopener" style="align-self:center">Open on LeetCode</a>
+  </div>
+  <div id="results"></div>
+  <pre id="out" hidden></pre>
+</section>
+
+<section class="card">
+  <h2>Add your own problem</h2>
+  <div class="row">
+    <input id="title" placeholder="Problem name" aria-label="Problem name">
+    <input id="link" placeholder="Link (optional)" aria-label="Problem link">
+    <select id="topic" aria-label="Topic"></select>
+    <select id="diff" aria-label="Difficulty"><option>Easy</option><option>Medium</option><option>Hard</option></select>
+    <button id="add">Add problem</button>
+  </div>
+</section>
+
+<section class="card">
+  <div class="row" style="margin-bottom:8px">
+    <select id="fTopic" aria-label="Filter by topic"></select>
+    <select id="fDiff" aria-label="Filter by difficulty"><option value="">All levels</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
+    <select id="fStatus" aria-label="Filter by status"><option value="">All status</option><option value="todo">To do</option><option value="done">Solved</option></select>
+  </div>
+  <div id="list"></div>
+</section>
+</main>
+
+<script>
+const TOPICS=["Arrays","Strings","Linked List","Stack & Queue","Trees","Graphs","Dynamic Programming","Sorting & Searching"];
+const LC="https://leetcode.com/problems/";
+const P=(id,title,topic,diff,desc,fn,tests,sort)=>({id,title,topic,diff,desc,fn,tests,sort,link:LC+id+"/",
+  starter:`function ${fn}(${tests?tests.args:"input"}) {\n  // write your code here\n  \n}\n`});
+// tests: {args:"a, b", cases:[{in:[...],out:...}]}
+const T=(args,cases)=>({args,cases});
+const PROBLEMS=[
+P("two-sum","Two Sum","Arrays","Easy","Return the indices of the two numbers that add up to target.","twoSum",T("nums, target",[{in:[[2,7,11,15],9],out:[0,1]},{in:[[3,2,4],6],out:[1,2]},{in:[[3,3],6],out:[0,1]}]),true),
+P("contains-duplicate","Contains Duplicate","Arrays","Easy","Return true if any value appears at least twice.","containsDuplicate",T("nums",[{in:[[1,2,3,1]],out:true},{in:[[1,2,3,4]],out:false},{in:[[1,1,1,3,3,4,3,2,4,2]],out:true}])),
+P("best-time-to-buy-and-sell-stock","Best Time to Buy and Sell Stock","Arrays","Easy","Return the maximum profit from one buy and one later sell.","maxProfit",T("prices",[{in:[[7,1,5,3,6,4]],out:5},{in:[[7,6,4,3,1]],out:0}])),
+P("product-of-array-except-self","Product of Array Except Self","Arrays","Medium","Return an array where each item is the product of all other items (no division).","productExceptSelf",T("nums",[{in:[[1,2,3,4]],out:[24,12,8,6]},{in:[[-1,1,0,-3,3]],out:[0,0,9,0,0]}])),
+P("merge-intervals","Merge Intervals","Arrays","Medium","Merge all overlapping intervals.","merge",T("intervals",[{in:[[[1,3],[2,6],[8,10],[15,18]]],out:[[1,6],[8,10],[15,18]]},{in:[[[1,4],[4,5]]],out:[[1,5]]}])),
+P("valid-anagram","Valid Anagram","Strings","Easy","Return true if t is an anagram of s.","isAnagram",T("s, t",[{in:["anagram","nagaram"],out:true},{in:["rat","car"],out:false}])),
+P("valid-palindrome","Valid Palindrome","Strings","Easy","Ignoring case and non-alphanumeric characters, is s a palindrome?","isPalindrome",T("s",[{in:["A man, a plan, a canal: Panama"],out:true},{in:["race a car"],out:false},{in:[" "],out:true}])),
+P("longest-substring-without-repeating-characters","Longest Substring Without Repeating Characters","Strings","Medium","Return the length of the longest substring with no repeated characters.","lengthOfLongestSubstring",T("s",[{in:["abcabcbb"],out:3},{in:["bbbbb"],out:1},{in:["pwwkew"],out:3}])),
+P("valid-parentheses","Valid Parentheses","Stack & Queue","Easy","Check that brackets ()[]{} are closed in the correct order.","isValid",T("s",[{in:["()[]{}"],out:true},{in:["(]"],out:false},{in:["([)]"],out:false},{in:["{[]}"],out:true}])),
+P("reverse-linked-list","Reverse Linked List","Linked List","Easy","Reverse a singly linked list. Run it on LeetCode to test; use console.log here to experiment.","reverseList",null),
+P("invert-binary-tree","Invert Binary Tree","Trees","Easy","Mirror a binary tree. Run it on LeetCode to test.","invertTree",null),
+P("number-of-islands","Number of Islands","Graphs","Medium","Count islands in a grid of '1' (land) and '0' (water). Run it on LeetCode to test.","numIslands",null),
+P("binary-search","Binary Search","Sorting & Searching","Easy","Return the index of target in a sorted array, or -1.","search",T("nums, target",[{in:[[-1,0,3,5,9,12],9],out:4},{in:[[-1,0,3,5,9,12],2],out:-1}])),
+P("climbing-stairs","Climbing Stairs","Dynamic Programming","Easy","How many distinct ways to climb n steps taking 1 or 2 at a time?","climbStairs",T("n",[{in:[2],out:2},{in:[3],out:3},{in:[10],out:89}])),
+P("maximum-subarray","Maximum Subarray","Dynamic Programming","Medium","Return the largest sum of a contiguous subarray.","maxSubArray",T("nums",[{in:[[-2,1,-3,4,-1,2,1,-5,4]],out:6},{in:[[1]],out:1},{in:[[5,4,-1,7,8]],out:23}])),
+P("coin-change","Coin Change","Dynamic Programming","Medium","Fewest coins to make amount, or -1 if impossible.","coinChange",T("coins, amount",[{in:[[1,2,5],11],out:3},{in:[[2],3],out:-1},{in:[[1],0],out:0}]))
+];
+PROBLEMS.forEach(p=>{if(p.tests)p.cases=p.tests.cases; p.args=p.tests&&p.tests.args;});
+
+const KEY="dsa-tracker-v2",$=id=>document.getElementById(id);
+let st={done:{},code:{},custom:[]};
+try{st=Object.assign(st,JSON.parse(localStorage.getItem(KEY))||{})}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+const day=d=>new Date(d).toDateString();
+const all=()=>PROBLEMS.concat(st.custom);
+let current=null;
+
+$("topic").innerHTML=TOPICS.map(t=>`<option>${t}</option>`).join("");
+$("fTopic").innerHTML='<option value="">All topics</option>'+TOPICS.map(t=>`<option>${t}</option>`).join("");
+
+function streak(){
+  const days=new Set(Object.values(st.done).map(day));
+  let n=0,d=new Date();
+  if(!days.has(d.toDateString()))d.setDate(d.getDate()-1);
+  while(days.has(d.toDateString())){n++;d.setDate(d.getDate()-1)}
+  return n;
+}
+
+function render(){
+  const list=all(),done=list.filter(p=>st.done[p.id]);
+  $("sSolved").textContent=done.length;
+  $("sTotal").textContent=list.length;
+  $("bAll").style.width=(list.length?done.length/list.length*100:0)+"%";
+  $("sStreak").textContent=streak();
+  [["Easy","Easy"],["Med","Medium"],["Hard","Hard"]].forEach(([k,f])=>$("s"+k).textContent=done.filter(p=>p.diff===f).length);
+  const ft=$("fTopic").value,fd=$("fDiff").value,fs=$("fStatus").value;
+  const shown=list.filter(p=>(!ft||p.topic===ft)&&(!fd||p.diff===fd)&&(!fs||(fs==="done")===!!st.done[p.id]));
+  $("list").innerHTML=shown.length?"":'<div class="empty">No problems match these filters.</div>';
+  shown.forEach(p=>{
+    const el=document.createElement("div");
+    el.className="item"+(st.done[p.id]?" done":"");
+    el.innerHTML=`<input type="checkbox" aria-label="Mark solved">
+      <div class="t"><a target="_blank" rel="noopener"></a><div class="meta"><span class="tag ${p.diff}">${p.diff}</span> | ${p.topic}</div></div>
+      <button class="sm code">Solve</button>
+      ${p.custom?'<button class="ghost sm del" aria-label="Delete problem">Delete</button>':""}`;
+    const a=el.querySelector("a");a.textContent=p.title;
+    if(p.link)a.href=p.link;else a.removeAttribute("target");
+    const cb=el.querySelector("input");cb.checked=!!st.done[p.id];
+    cb.onchange=()=>{toggle(p.id);render()};
+    const b=el.querySelector(".code");
+    if(p.custom)b.remove();else b.onclick=()=>openEditor(p);
+    const d=el.querySelector(".del");
+    if(d)d.onclick=()=>{st.custom=st.custom.filter(x=>x.id!==p.id);delete st.done[p.id];save();render()};
+    $("list").appendChild(el);
+  });
+}
+function toggle(id,force){
+  if(force===true||(force===undefined&&!st.done[id]))st.done[id]=st.done[id]||Date.now();else delete st.done[id];
+  save();
+}
+
+/* ---------- code runner (Web Worker, so bad code can't freeze the page) ---------- */
+function workerBody(){
+  onmessage=e=>{
+    const {code,fn,cases,sort}=e.data,logs=[],res={logs,results:[],error:null};
+    console.log=(...a)=>logs.push(a.map(x=>typeof x==="string"?x:JSON.stringify(x)).join(" "));
+    const norm=v=>JSON.stringify(sort&&Array.isArray(v)?[...v].sort((a,b)=>a-b):v);
+    try{
+      const f=new Function(code+"\n;return typeof "+fn+"==='function'?"+fn+":null;")();
+      if(cases){
+        if(!f)throw new Error("Function "+fn+" was not found. Keep the function name.");
+        for(const t of cases){
+          let got;
+          try{got=f(...JSON.parse(JSON.stringify(t.in)))}catch(err){got="Error: "+err.message}
+          res.results.push({input:JSON.stringify(t.in),exp:JSON.stringify(t.out),got:String(JSON.stringify(got)),pass:norm(got)===norm(t.out)});
+        }
+      }
+    }catch(err){res.error=err.message}
+    postMessage(res);
+  };
+}
+const workerURL=URL.createObjectURL(new Blob(["("+workerBody.toString()+")()"],{type:"text/javascript"}));
+
+function openEditor(p){
+  current=p;
+  $("editor").style.display="block";
+  $("eTitle").textContent=p.title+" ("+p.diff+")";
+  $("eDesc").textContent=p.desc;
+  $("eLink").href=p.link;
+  $("code").value=st.code[p.id]||p.starter;
+  $("results").innerHTML="";$("out").hidden=true;
+  $("editor").scrollIntoView({behavior:"smooth"});
+}
+function run(){
+  if(!current)return;
+  st.code[current.id]=$("code").value;save();
+  $("results").innerHTML="Running...";$("out").hidden=true;
+  const w=new Worker(workerURL);
+  const timer=setTimeout(()=>{w.terminate();$("results").innerHTML='<p class="fail">Time limit exceeded (3 seconds). Check for an infinite loop or a slow approach.</p>'},3000);
+  w.onmessage=e=>{
+    clearTimeout(timer);w.terminate();show(e.data);
+  };
+  w.postMessage({code:$("code").value,fn:current.fn,cases:current.cases,sort:current.sort});
+}
+function show(r){
+  let html="";
+  if(r.error)html+=`<p class="fail"></p>`;
+  const passed=r.results.filter(x=>x.pass).length;
+  if(r.results.length){
+    html+=`<p><b class="${passed===r.results.length?"pass":"fail"}">${passed} of ${r.results.length} tests passed</b></p>`;
+    html+=r.results.map((x,i)=>`<div class="meta"><span class="${x.pass?"pass":"fail"} tag">${x.pass?"Pass":"Fail"}</span> Test ${i+1}: input <code class="i"></code> expected <code class="e"></code> got <code class="g"></code></div>`).join("");
+  }
+  $("results").innerHTML=html;
+  const err=$("results").querySelector("p.fail");if(err)err.textContent="Error: "+r.error;
+  $("results").querySelectorAll(".meta").forEach((m,i)=>{
+    m.querySelector(".i").textContent=r.results[i].input;
+    m.querySelector(".e").textContent=r.results[i].exp;
+    m.querySelector(".g").textContent=r.results[i].got;
+  });
+  if(r.logs.length){$("out").hidden=false;$("out").textContent="Console output:\n"+r.logs.join("\n")}
+  if(r.results.length&&passed===r.results.length){toggle(current.id,true);render()}
+}
+$("run").onclick=run;
+$("reset").onclick=()=>{if(current){delete st.code[current.id];$("code").value=current.starter;save()}};
+$("close").onclick=()=>{$("editor").style.display="none";current=null};
+$("code").addEventListener("keydown",e=>{
+  if(e.key==="Tab"){e.preventDefault();const t=e.target,s=t.selectionStart;t.value=t.value.slice(0,s)+"  "+t.value.slice(t.selectionEnd);t.selectionStart=t.selectionEnd=s+2}
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run();
+});
+
+/* ---------- custom problems ---------- */
+function add(){
+  const title=$("title").value.trim();
+  if(!title){$("title").focus();return}
+  let link=$("link").value.trim();
+  if(link&&!/^https?:\/\//i.test(link))link="https://"+link;
+  st.custom.unshift({id:"c"+Date.now(),title,link,topic:$("topic").value,diff:$("diff").value,custom:true});
+  $("title").value="";$("link").value="";
+  save();render();
+}
+$("add").onclick=add;
+$("title").addEventListener("keydown",e=>{if(e.key==="Enter")add()});
+["fTopic","fDiff","fStatus"].forEach(id=>$(id).onchange=render);
+render();
+</script>
+</body>
+</html>
